@@ -15,8 +15,15 @@
 
 const fs     = require('fs');
 const path   = require('path');
-const faiss  = require('faiss-node');
 const logger = require('../utils/logger');
+
+// faiss-node requires native binaries — may not be available on all platforms
+let faiss = null;
+try {
+  faiss = require('faiss-node');
+} catch (e) {
+  logger.warn('faiss-node not available — semantic search disabled. Install faiss-node for vector search.');
+}
 
 const INDEX_DIR  = path.join(__dirname, '..', 'data');
 const INDEX_FILE = path.join(INDEX_DIR, 'faiss.index');
@@ -39,6 +46,12 @@ class FaissService {
    */
   async initialize() {
     try {
+      if (!faiss) {
+        logger.warn('FaissService: faiss-node unavailable — running keyword-only mode');
+        this.ready = true;
+        return;
+      }
+
       fs.mkdirSync(INDEX_DIR, { recursive: true });
 
       if (fs.existsSync(INDEX_FILE) && fs.existsSync(META_FILE)) {
@@ -55,7 +68,6 @@ class FaissService {
       this.ready = true;
     } catch (err) {
       logger.error('FaissService: initialization failed:', err.message);
-      // Fall back to empty index so the server still starts
       this._createFreshIndex();
       this.ready = true;
     }
@@ -68,12 +80,12 @@ class FaissService {
    */
   addBatch(embeddings, metaItems) {
     if (!this.ready) throw new Error('FaissService not initialized');
+    if (!faiss || !this.index) return; // no-op if faiss unavailable
     if (embeddings.length !== metaItems.length) {
       throw new Error('embeddings and metaItems must have the same length');
     }
     if (embeddings.length === 0) return;
 
-    // faiss-node expects a flat Float32Array
     const flat = new Float32Array(embeddings.length * this.dimension);
     for (let i = 0; i < embeddings.length; i++) {
       flat.set(embeddings[i], i * this.dimension);
@@ -84,15 +96,9 @@ class FaissService {
     this.totalVectors += embeddings.length;
   }
 
-  /**
-   * Search for top-k nearest neighbours.
-   * @param {number[]} queryEmbedding — float32 array of length = dimension
-   * @param {number}   k              — number of results to return
-   * @returns {{ label: number, distance: number, meta: object }[]}
-   */
   search(queryEmbedding, k = 10) {
     if (!this.ready) throw new Error('FaissService not initialized');
-    if (this.totalVectors === 0) return [];
+    if (!faiss || !this.index || this.totalVectors === 0) return [];
 
     const safeK = Math.min(k, this.totalVectors);
     const flat  = new Float32Array(queryEmbedding);
@@ -102,10 +108,10 @@ class FaissService {
     const results = [];
     for (let i = 0; i < labels.length; i++) {
       const label = labels[i];
-      if (label < 0 || label >= this.metadata.length) continue; // FAISS returns -1 for empty slots
+      if (label < 0 || label >= this.metadata.length) continue;
       results.push({
         label,
-        distance: distances[i],   // inner product (higher = more similar for IndexFlatIP)
+        distance: distances[i],
         meta: this.metadata[label],
       });
     }
@@ -113,11 +119,8 @@ class FaissService {
     return results;
   }
 
-  /**
-   * Persist index + metadata to disk.
-   */
   save() {
-    if (!this.ready || this.totalVectors === 0) return;
+    if (!faiss || !this.ready || this.totalVectors === 0) return;
     try {
       fs.mkdirSync(INDEX_DIR, { recursive: true });
       faiss.write_index(this.index, INDEX_FILE);
@@ -128,9 +131,6 @@ class FaissService {
     }
   }
 
-  /**
-   * Rebuild the index from scratch (used by buildIndex.js script).
-   */
   reset() {
     this._createFreshIndex();
     this.metadata     = [];
@@ -153,13 +153,11 @@ class FaissService {
   // ── Private ────────────────────────────────────────────────────────────────
 
   _createFreshIndex() {
-    // HNSW: fast approximate search, good recall, low memory
-    // M=32 (connections per node), efConstruction=40 (build quality)
+    if (!faiss) { this.index = null; return; }
     try {
       this.index = new faiss.IndexHNSWFlat(this.dimension, 32);
       logger.info(`FaissService: created IndexHNSWFlat(dim=${this.dimension}, M=32)`);
     } catch {
-      // Fallback to exact search if HNSW not available in this build
       this.index = new faiss.IndexFlatIP(this.dimension);
       logger.info(`FaissService: created IndexFlatIP(dim=${this.dimension}) [fallback]`);
     }

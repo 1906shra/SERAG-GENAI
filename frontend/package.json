@@ -2,6 +2,9 @@
   "name": "ai-search-engine-frontend",
   "version": "1.0.0",
   "description": "Frontend for AI Search Engine Dashboard",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

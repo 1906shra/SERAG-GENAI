@@ -1,0 +1,50 @@
+services:
+  # ── Backend (Node.js / Express) ─────────────────────────────────────────────
+  - type: web
+    name: serag-genai-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: MONGODB_URI
+        sync: false          # set in Render dashboard
+      - key: JWT_SECRET
+        sync: false          # set in Render dashboard
+      - key: JWT_EXPIRE
+        value: 7d
+      - key: OPENAI_API_KEY
+        sync: false          # set in Render dashboard
+      - key: OPENAI_MODEL
+        value: gpt-3.5-turbo
+      - key: VECTOR_DIMENSION
+        value: "1536"
+      - key: MAX_FILE_SIZE
+        value: "10485760"
+      - key: UPLOAD_PATH
+        value: ./uploads
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "900000"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "100"
+      - key: LOG_LEVEL
+        value: info
+      - key: FRONTEND_URL
+        sync: false          # set to your frontend Render URL
+
+  # ── Frontend (Next.js) ──────────────────────────────────────────────────────
+  - type: web
+    name: serag-genai-frontend
+    runtime: node
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false          # set to your backend Render URL + /api
