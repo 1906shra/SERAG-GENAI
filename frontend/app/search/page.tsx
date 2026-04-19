@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   MagnifyingGlassIcon,
@@ -44,7 +44,7 @@ interface SearchResponse {
   searchId: string;
 }
 
-function SearchPage() {
+function SearchPageInner() {
   const searchParams = useSearchParams();
   const router       = useRouter();
   const inputRef     = useRef<HTMLInputElement>(null);
@@ -390,6 +390,18 @@ function SearchPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="loading-spinner h-8 w-8" />
+      </div>
+    }>
+      <SearchPageInner />
+    </Suspense>
   );
 }
 
