@@ -30,11 +30,33 @@ faissService.initialize().then(() => {
 
 // Security middleware
 app.use(helmet());
+
+// CORS — allow configured frontend URL(s) + localhost for dev
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  process.env.FRONTEND_URL,
+].filter(Boolean); // remove undefined/empty
+
+// Also allow any *.onrender.com origin automatically (covers preview deploys)
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL 
-    : 'http://localhost:3000',
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+
+    if (
+      ALLOWED_ORIGINS.includes(origin) ||
+      /^https:\/\/.*\.onrender\.com$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+
+    logger.warn(`CORS blocked origin: ${origin}`);
+    return callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Rate limiting

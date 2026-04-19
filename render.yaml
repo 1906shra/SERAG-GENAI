@@ -34,7 +34,7 @@ services:
       - key: LOG_LEVEL
         value: info
       - key: FRONTEND_URL
-        sync: false          # set to your frontend Render URL
+        value: https://serag-genai-2.onrender.com
 
   # ── Frontend (Next.js) ──────────────────────────────────────────────────────
   - type: web
